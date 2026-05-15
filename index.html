@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>程序员人生 · MVP</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <div id="app">
+    <header class="top-bar">
+      <div class="meta-bar">
+        <span class="age">年龄 <span id="age">22</span></span>
+        <span class="title-badge" id="title-badge">初级工程师</span>
+        <span class="chapter-info" id="chapter-info"></span>
+      </div>
+      <div class="stats" id="stats"></div>
+    </header>
+
+    <main class="stage">
+      <div class="scene" id="scene">
+        <h2 id="scene-title">毕业季</h2>
+        <p id="scene-text">点击开始,体验程序员的一生。</p>
+      </div>
+
+      <div class="choices" id="choices"></div>
+
+      <div class="log" id="log"></div>
+    </main>
+
+    <footer class="bottom-bar">
+      <button id="start-btn">开始人生</button>
+      <button id="reset-btn" style="display:none">重开一次</button>
+    </footer>
+  </div>
+
+  <script src="data/companies.js"></script>
+  <script src="data/titles.js"></script>
+  <script src="data/endings.js"></script>
+  <script src="data/minigames.js"></script>
+  <script src="data/random_events.js"></script>
+  <script src="data/age35.js"></script>
+  <script src="data/lines/main.js"></script>
+  <script src="data/events.js"></script>
+  <script src="game.js"></script>
+</body>
+</html>
