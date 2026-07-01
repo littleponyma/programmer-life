@@ -748,3 +748,68 @@ button:disabled { opacity: 0.5; cursor: not-allowed; }
   font-size: 12px;
   font-weight: 600;
 }
+
+/* ===== 人生长图分享 ===== */
+.ending-actions {
+  margin-top: 24px;
+  display: flex;
+  justify-content: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+#share-img-wrap {
+  margin-top: 20px;
+}
+#share-img-wrap img {
+  width: 100%;
+  max-width: 480px;
+  border-radius: 8px;
+  box-shadow: 0 4px 20px rgba(0,0,0,0.12);
+}
+.share-tip {
+  margin-top: 12px;
+  font-size: 13px;
+  color: #888;
+  line-height: 1.7;
+}
+.share-tip a {
+  color: #c97b3e;
+  text-decoration: none;
+  font-weight: 600;
+}
+
+/* ===== 移动端适配:缩小四周边框,放大内容区 ===== */
+@media (max-width: 600px) {
+  body {
+    padding: 0;
+  }
+  #app {
+    border-radius: 0;
+    box-shadow: none;
+    min-height: 100vh;
+  }
+  .top-bar {
+    padding: 12px 14px;
+  }
+  .stage {
+    padding: 18px 14px;
+    min-height: auto;
+  }
+  .bottom-bar {
+    padding: 12px 14px;
+  }
+  .scene h2 {
+    font-size: 20px;
+  }
+  .choice {
+    padding: 12px 14px;
+  }
+  .ending {
+    padding: 28px 14px;
+  }
+  /* 深色交互面板在小屏也收窄内边距 */
+  .minigame { padding: 14px; }
+  .pm-board,
+  .neg-dialog,
+  .review-board { padding: 12px; }
+}

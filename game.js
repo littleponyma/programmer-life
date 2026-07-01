@@ -209,6 +209,7 @@ function getCurrentChapter() {
 
 // 开局 · 阶段 1: 找工作叙事
 function renderOpening() {
+  checkpoint("opening");
   document.getElementById("scene-title").textContent = OPENING.phase1.title;
   document.getElementById("scene-text").textContent = OPENING.phase1.text;
   const el = document.getElementById("choices");
@@ -218,6 +219,7 @@ function renderOpening() {
 
 // 开局 · 阶段 2: 3-4 个 Offer 选一个
 function renderOfferPicker() {
+  checkpoint("offer");
   document.getElementById("scene-title").textContent = OPENING.phase2.title;
   document.getElementById("scene-text").textContent = OPENING.phase2.text;
   const el = document.getElementById("choices");
@@ -285,6 +287,7 @@ function enterChapter(chapterId) {
 
 // 章节封面页
 function renderChapterCover(ch) {
+  checkpoint("chapterCover");
   document.getElementById("scene-title").textContent = fillCo(`第 ${ch.chapter} 章  ${ch.title}`);
   document.getElementById("scene-text").textContent = fillCo(ch.setting);
   const el = document.getElementById("choices");
@@ -303,6 +306,7 @@ function getChapterEventList(ch) {
 function playNextEvent() {
   const ch = getCurrentChapter();
   if (!ch) return;
+  checkpoint("event");
   const eventList = getChapterEventList(ch);
   if (State.eventIdx >= eventList.length) {
     // 固定事件播完,先 roll 一下随机事件池
@@ -695,6 +699,7 @@ function renderChapterSummary(ch) {
 }
 
 function renderChapterSummaryInner(ch) {
+  checkpoint("summary");
   renderStats();
   const titleHtml = `第 ${ch.chapter} 章 · ${ch.title} · 落幕`;
   document.getElementById("scene-title").textContent = fillCo(titleHtml);
@@ -1612,6 +1617,7 @@ function showEnding() {
 }
 
 function renderEnding(e) {
+  checkpoint("ending");
   const stage = document.querySelector(".stage");
   stage.innerHTML = `
     <div class="ending">
@@ -1621,10 +1627,158 @@ function renderEnding(e) {
       <div class="summary">
         ${STAT_DEFS.map(s => `${s.icon} ${s.label}: ${State.stats[s.key]}`).join(" &nbsp; ")}
       </div>
+      <div class="ending-actions">
+        <button class="choice big-cta" id="share-img-btn" style="max-width:280px;">📷 生成人生长图</button>
+      </div>
+      <div id="share-img-wrap"></div>
     </div>
   `;
   document.getElementById("start-btn").style.display = "none";
   document.getElementById("reset-btn").style.display = "inline-block";
+  const shareBtn = document.getElementById("share-img-btn");
+  if (shareBtn) shareBtn.onclick = () => renderLifeImage(e);
+}
+
+// ---------------- 人生轨迹分享长图 ----------------
+// 用 canvas 把结局 + 最终属性 + 职业履历 + 人生轨迹绘制成一张竖向长图
+function generateLifeImage(e) {
+  const DPR = 2;
+  const W = 520;
+  const PAD = 28;
+  const CW = W - PAD * 2;
+  const COL = { bg: "#fffdf7", ink: "#2a2a2a", sub: "#555", faint: "#888", accent: "#c97b3e", line: "#e2dccd" };
+  const F = {
+    brand: "700 15px -apple-system,'PingFang SC','Microsoft YaHei',sans-serif",
+    h1:    "700 26px -apple-system,'PingFang SC','Microsoft YaHei',sans-serif",
+    label: "700 14px -apple-system,'PingFang SC','Microsoft YaHei',sans-serif",
+    body:  "15px -apple-system,'PingFang SC','Microsoft YaHei',sans-serif",
+    small: "13px -apple-system,'PingFang SC','Microsoft YaHei',sans-serif",
+    foot:  "12px -apple-system,'PingFang SC','Microsoft YaHei',sans-serif"
+  };
+
+  const meas = document.createElement("canvas").getContext("2d");
+  function wrap(ctx, text, font, maxW) {
+    ctx.font = font;
+    const lines = [];
+    let cur = "";
+    for (const ch of String(text)) {
+      if (ch === "\n") { lines.push(cur); cur = ""; continue; }
+      if (cur && ctx.measureText(cur + ch).width > maxW) { lines.push(cur); cur = ch; }
+      else cur += ch;
+    }
+    lines.push(cur);
+    return lines.length ? lines : [""];
+  }
+
+  // 单次绘制流程:ctx 为空(测量)或真实 ctx。返回内容总高度(逻辑 px)。
+  function paint(ctx, draw) {
+    let y = PAD;
+    const hr = (gap) => {
+      y += gap;
+      if (draw) {
+        ctx.strokeStyle = COL.line;
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.moveTo(PAD, y + 0.5);
+        ctx.lineTo(W - PAD, y + 0.5);
+        ctx.stroke();
+      }
+      y += gap;
+    };
+    const text = (str, font, color, lh, align) => {
+      const lines = wrap(meas, str, font, CW);
+      for (const ln of lines) {
+        if (draw) {
+          ctx.font = font;
+          ctx.fillStyle = color;
+          ctx.textAlign = align || "left";
+          const x = align === "center" ? W / 2 : PAD;
+          ctx.fillText(ln, x, y + lh * 0.72);
+        }
+        y += lh;
+      }
+    };
+
+    // 品牌头
+    text("🧑‍💻 程序员人生 · 人生轨迹", F.brand, COL.accent, 22, "center");
+    // 结局大标题
+    y += 6;
+    text("结局 · " + fillCo(e.title), F.h1, COL.ink, 34, "center");
+    y += 4;
+    // 结局文案
+    text(fillCo(e.text), F.body, COL.sub, 24);
+    hr(14);
+
+    // 最终属性
+    text("最终属性", F.label, COL.accent, 22);
+    y += 4;
+    for (const s of STAT_DEFS) {
+      text(`${s.icon} ${s.label}    ${State.stats[s.key]}`, F.small, COL.ink, 22);
+    }
+    hr(14);
+
+    // 职业履历
+    text("职业履历", F.label, COL.accent, 22);
+    y += 4;
+    const co = State.companyHistory || [];
+    if (co.length === 0) {
+      text("—", F.small, COL.faint, 22);
+    }
+    co.forEach((c, i) => {
+      const end = c.endAge || State.age;
+      text(`${c.startAge}-${end}岁  ${fillCo(c.co)}`, F.small, COL.ink, 21);
+      if (c.reason) text(`　${fillCo(c.reason)}`, F.foot, COL.faint, 19);
+      if (i < co.length - 1) y += 2;
+    });
+    hr(14);
+
+    // 人生轨迹
+    text(`人生轨迹（22-${State.age} 岁）`, F.label, COL.accent, 22);
+    y += 4;
+    const hist = State.history || [];
+    if (hist.length === 0) text("—", F.small, COL.faint, 22);
+    hist.forEach(h => {
+      text(`${h.age}岁 ｜ ${fillCo(h.text)}`, F.small, COL.sub, 22);
+      y += 3;
+    });
+
+    hr(14);
+    text("程序员人生模拟器 · littleponyma.github.io/programmer-life", F.foot, COL.faint, 20, "center");
+    y += PAD;
+    return y;
+  }
+
+  const H = paint(null, false);
+  const canvas = document.createElement("canvas");
+  canvas.width = W * DPR;
+  canvas.height = Math.ceil(H) * DPR;
+  const ctx = canvas.getContext("2d");
+  ctx.scale(DPR, DPR);
+  ctx.fillStyle = COL.bg;
+  ctx.fillRect(0, 0, W, H);
+  // 顶部装饰条
+  ctx.fillStyle = COL.accent;
+  ctx.fillRect(0, 0, W, 6);
+  paint(ctx, true);
+  return canvas;
+}
+
+function renderLifeImage(e) {
+  const box = document.getElementById("share-img-wrap");
+  if (!box) return;
+  box.innerHTML = '<p class="share-tip">正在生成长图…</p>';
+  setTimeout(() => {
+    try {
+      const canvas = generateLifeImage(e);
+      const url = canvas.toDataURL("image/png");
+      box.innerHTML =
+        `<img src="${url}" alt="人生轨迹长图" />` +
+        `<p class="share-tip">手机长按图片即可保存 / 分享;电脑可 ` +
+        `<a href="${url}" download="程序员人生.png">点此下载</a>。</p>`;
+    } catch (err) {
+      box.innerHTML = '<p class="share-tip">生成失败:' + ((err && err.message) || err) + '</p>';
+    }
+  }, 30);
 }
 
 // ---------------- 入口 ----------------
@@ -1637,6 +1791,9 @@ function start() {
 }
 
 function reset() {
+  clearProgress();
+  State.started = false;
+  State._resumePoint = null;
   State.age = 22;
   State.stats = { tech: 50, comm: 50, money: 0, health: 80, network: 30, fame: 10 };
   State.flags = new Set();
@@ -1665,8 +1822,107 @@ function reset() {
   renderStats();
 }
 
-document.addEventListener("DOMContentLoaded", () => {
+// ---------------- 进度存档(localStorage) ----------------
+// 采用"检查点"策略:在每个稳定渲染点保存 State 快照 + _resumePoint 标记,
+// 刷新后据此重建画面。进行中的小游戏/随机事件会回到其所属事件的开头。
+const SAVE_KEY = "programmer_life_save_v1";
+
+function saveProgress() {
+  try {
+    const data = {
+      v: 1,
+      age: State.age,
+      stats: State.stats,
+      flags: [...State.flags],
+      history: State.history,
+      started: State.started,
+      lineId: State.lineId,
+      chapterId: State.chapterId,
+      eventIdx: State.eventIdx,
+      title: State.title,
+      shownTitleEvents: [...(State.shownTitleEvents || [])],
+      startCo: State.startCo,
+      currentCo: State.currentCo,
+      companyHistory: State.companyHistory,
+      jobChanges: State.jobChanges,
+      triggeredExclusiveGroups: [...(State._triggeredExclusiveGroups || [])],
+      randomRolled: State._randomRolled,
+      resumePoint: State._resumePoint || null
+    };
+    localStorage.setItem(SAVE_KEY, JSON.stringify(data));
+  } catch (e) { /* localStorage 不可用则静默忽略 */ }
+}
+
+function clearProgress() {
+  try { localStorage.removeItem(SAVE_KEY); } catch (e) { /* ignore */ }
+}
+
+function loadProgress() {
+  try {
+    const raw = localStorage.getItem(SAVE_KEY);
+    return raw ? JSON.parse(raw) : null;
+  } catch (e) { return null; }
+}
+
+// 在稳定渲染点调用:记录当前恢复点并落盘
+function checkpoint(point) {
+  State._resumePoint = point;
+  saveProgress();
+}
+
+function restoreState(d) {
+  State.age = d.age;
+  State.stats = d.stats;
+  State.flags = new Set(d.flags || []);
+  State.history = d.history || [];
+  State.started = d.started;
+  State.lineId = d.lineId;
+  State.chapterId = d.chapterId;
+  State.eventIdx = d.eventIdx;
+  State.title = d.title;
+  State.shownTitleEvents = new Set(d.shownTitleEvents || []);
+  State.startCo = d.startCo;
+  State.currentCo = d.currentCo;
+  State.companyHistory = d.companyHistory || [];
+  State.jobChanges = d.jobChanges || 0;
+  State._triggeredExclusiveGroups = new Set(d.triggeredExclusiveGroups || []);
+  State._randomRolled = d.randomRolled || false;
+  State._resumePoint = d.resumePoint || null;
+}
+
+function resumeGame(d) {
+  restoreState(d);
+  document.getElementById("start-btn").style.display = "none";
+  document.getElementById("reset-btn").style.display = "inline-block";
   renderStats();
+  switch (State._resumePoint) {
+    case "opening": renderOpening(); break;
+    case "offer": renderOfferPicker(); break;
+    case "chapterCover": {
+      const ch = getCurrentChapter();
+      if (ch) renderChapterCover(ch); else playNextEvent();
+      break;
+    }
+    case "event": playNextEvent(); break;
+    case "summary": {
+      const ch = getCurrentChapter();
+      if (ch) renderChapterSummary(ch); else showEnding();
+      break;
+    }
+    case "ending": showEnding(); break;
+    default: renderOpening();
+  }
+}
+
+// ---------------- 入口 ----------------
+
+document.addEventListener("DOMContentLoaded", () => {
   document.getElementById("start-btn").onclick = start;
   document.getElementById("reset-btn").onclick = reset;
+  const saved = loadProgress();
+  if (saved && saved.started) {
+    resumeGame(saved);
+  } else {
+    renderStats();
+  }
 });
