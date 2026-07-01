@@ -1630,18 +1630,18 @@ function renderEnding(e) {
       <div class="ending-actions">
         <button class="choice big-cta" id="share-img-btn" style="max-width:280px;">📷 生成人生长图</button>
       </div>
-      <div id="share-img-wrap"></div>
     </div>
   `;
   document.getElementById("start-btn").style.display = "none";
   document.getElementById("reset-btn").style.display = "inline-block";
   const shareBtn = document.getElementById("share-img-btn");
-  if (shareBtn) shareBtn.onclick = () => renderLifeImage(e);
+  if (shareBtn) shareBtn.onclick = () => openShareOverlay({ isEnding: true, title: e.title, text: e.text });
 }
 
 // ---------------- 人生轨迹分享长图 ----------------
-// 用 canvas 把结局 + 最终属性 + 职业履历 + 人生轨迹绘制成一张竖向长图
-function generateLifeImage(e) {
+// 用 canvas 把当前进度(结局或进行中)+ 属性 + 职业履历 + 人生轨迹绘制成一张竖向长图
+// head: { isEnding, title, text } —— isEnding=false 时为"人生进行中"分享
+function generateLifeImage(head) {
   const DPR = 2;
   const W = 520;
   const PAD = 28;
@@ -1701,12 +1701,20 @@ function generateLifeImage(e) {
 
     // 品牌头
     text("🧑‍💻 程序员人生 · 人生轨迹", F.brand, COL.accent, 22, "center");
-    // 结局大标题
     y += 6;
-    text("结局 · " + fillCo(e.title), F.h1, COL.ink, 34, "center");
-    y += 4;
-    // 结局文案
-    text(fillCo(e.text), F.body, COL.sub, 24);
+    if (head.isEnding) {
+      // 结局大标题 + 文案
+      text("结局 · " + fillCo(head.title), F.h1, COL.ink, 34, "center");
+      y += 4;
+      text(fillCo(head.text), F.body, COL.sub, 24);
+    } else {
+      // 进行中:年龄 · 职级 · 当前公司
+      text("人生进行中", F.h1, COL.ink, 34, "center");
+      y += 4;
+      const co = State.currentCo ? " · " + fillCo(State.currentCo) : "";
+      const tl = (typeof titleLabel === "function") ? titleLabel(State.title) : "";
+      text(`${State.age}岁 · ${tl}${co}`, F.body, COL.sub, 24, "center");
+    }
     hr(14);
 
     // 最终属性
@@ -1763,20 +1771,38 @@ function generateLifeImage(e) {
   return canvas;
 }
 
-function renderLifeImage(e) {
-  const box = document.getElementById("share-img-wrap");
-  if (!box) return;
-  box.innerHTML = '<p class="share-tip">正在生成长图…</p>';
+// 弹出浮层展示长图(游戏进行中 / 结局 通用)
+function openShareOverlay(head) {
+  const existing = document.getElementById("share-overlay");
+  if (existing) existing.remove();
+  const overlay = document.createElement("div");
+  overlay.id = "share-overlay";
+  overlay.className = "share-overlay";
+  overlay.innerHTML =
+    `<div class="share-modal">
+       <div class="share-modal-head">
+         <span>${head.isEnding ? "人生长图 · 结局" : "人生长图 · 进行中"}</span>
+         <button class="share-close" id="share-close-btn" aria-label="关闭">✕</button>
+       </div>
+       <div class="share-scroll"><p class="share-tip" style="text-align:center">正在生成长图…</p></div>
+       <div class="share-actions" id="share-actions"></div>
+     </div>`;
+  document.body.appendChild(overlay);
+  const close = () => overlay.remove();
+  overlay.addEventListener("click", ev => { if (ev.target === overlay) close(); });
+  document.getElementById("share-close-btn").onclick = close;
+
   setTimeout(() => {
     try {
-      const canvas = generateLifeImage(e);
+      const canvas = generateLifeImage(head);
       const url = canvas.toDataURL("image/png");
-      box.innerHTML =
-        `<img src="${url}" alt="人生轨迹长图" />` +
-        `<p class="share-tip">手机长按图片即可保存 / 分享;电脑可 ` +
-        `<a href="${url}" download="程序员人生.png">点此下载</a>。</p>`;
+      overlay.querySelector(".share-scroll").innerHTML = `<img src="${url}" alt="人生轨迹长图" />`;
+      document.getElementById("share-actions").innerHTML =
+        `<a class="share-dl" href="${url}" download="程序员人生.png">下载图片</a>` +
+        `<span class="share-tip">手机长按图片可保存 / 分享</span>`;
     } catch (err) {
-      box.innerHTML = '<p class="share-tip">生成失败:' + ((err && err.message) || err) + '</p>';
+      overlay.querySelector(".share-scroll").innerHTML =
+        '<p class="share-tip" style="text-align:center">生成失败:' + ((err && err.message) || err) + '</p>';
     }
   }, 30);
 }
@@ -1786,6 +1812,7 @@ function renderLifeImage(e) {
 function start() {
   document.getElementById("start-btn").style.display = "none";
   document.getElementById("reset-btn").style.display = "inline-block";
+  document.getElementById("share-btn").style.display = "inline-block";
   State.started = true;
   renderOpening();
 }
@@ -1818,6 +1845,7 @@ function reset() {
     <div class="log" id="log"></div>
   `;
   document.getElementById("reset-btn").style.display = "none";
+  document.getElementById("share-btn").style.display = "none";
   document.getElementById("start-btn").style.display = "inline-block";
   renderStats();
 }
@@ -1894,6 +1922,7 @@ function resumeGame(d) {
   restoreState(d);
   document.getElementById("start-btn").style.display = "none";
   document.getElementById("reset-btn").style.display = "inline-block";
+  document.getElementById("share-btn").style.display = "inline-block";
   renderStats();
   switch (State._resumePoint) {
     case "opening": renderOpening(); break;
@@ -1919,6 +1948,7 @@ function resumeGame(d) {
 document.addEventListener("DOMContentLoaded", () => {
   document.getElementById("start-btn").onclick = start;
   document.getElementById("reset-btn").onclick = reset;
+  document.getElementById("share-btn").onclick = () => openShareOverlay({ isEnding: false });
   const saved = loadProgress();
   if (saved && saved.started) {
     resumeGame(saved);
