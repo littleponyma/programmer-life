@@ -13,7 +13,8 @@ const State = {
   age: 22,
   stats: { tech: 50, comm: 50, money: 0, health: 80, network: 30, fame: 10 },
   flags: new Set(),
-  history: [], // { age, text }
+  history: [], // { age, text } —— 侧边日志用的简短摘要
+  story: [],   // 完整人生故事(分享长图数据源):{ chapterId, chapterNo, chapterTitle, age, title, scene, choice, feedback }
   started: false,
   // 章节制
   lineId: "main",         // 合并后只有一条主线
@@ -205,6 +206,23 @@ function getCurrentLine() {
 function getCurrentChapter() {
   const line = getCurrentLine();
   return line && State.chapterId ? line.chapters[State.chapterId] : null;
+}
+
+// 把玩家当步看到的完整故事(标题/场景正文/选中选项/选完后续)写入 State.story
+// 统一在此处去 HTML 标签 + fillCo,修复历史上小游戏结局 log 未替换占位符的隐患
+function pushStory(part) {
+  const clean = s => fillCo(String(s).replace(/<[^>]+>/g, ""));
+  const ch = getCurrentChapter();
+  State.story.push({
+    chapterId: State.chapterId,
+    chapterNo: ch ? ch.chapter : null,
+    chapterTitle: ch ? ch.title : null,
+    age: State.age,
+    title: part.title ? clean(part.title) : "",
+    scene: part.scene ? clean(part.scene) : "",
+    choice: part.choice ? clean(part.choice) : "",
+    feedback: part.feedback ? clean(part.feedback) : ""
+  });
 }
 
 // 开局 · 阶段 1: 找工作叙事
@@ -577,6 +595,15 @@ function showChoiceFeedback(choice, delta, te, onContinue) {
   }
   sceneText.textContent = fillCo(feedbackText);
 
+  // 写入完整人生故事(场景标题 + 场景正文 + 选中选项 + 选完后续)
+  const sceneBody = typeof te.dynamicText === "function" ? te.dynamicText(State.flags) : te.text;
+  pushStory({
+    title: te.title,
+    scene: sceneBody,
+    choice: choice.text,
+    feedback: feedbackText
+  });
+
   // 渲染属性 delta 卡片 + 继续按钮
   const deltaItems = Object.entries(delta).filter(([k, v]) => v !== 0);
   let deltaHtml = "";
@@ -632,6 +659,7 @@ function handleSpecialOutcome(outcomeId, onDone) {
 你 5 分钟内冲到公司。
 路上你想起小吴办手续时看你的那一眼。
 你以为那是颓废,其实那是预告。`;
+      pushStory({ title: "🔥 凌晨 03:47 · 电话", scene: sceneText.textContent });
       el.innerHTML = `<button class="choice big-cta" id="genz-step1">推开应急会议室门 →</button>`;
       document.getElementById("genz-step1").onclick = () => {
         sceneTitle.textContent = "🔥 删库跑路 · 后果";
@@ -650,6 +678,7 @@ HRBP 张姐找你谈话。她不再笑了。
 1 个月后:你的下属重新分配。
 3 个月后:你年终绩效 D,且'高潜培养'标签永久取消。
 6 个月后:你接到那张 N+1 协议。`;
+        pushStory({ title: "🔥 删库跑路 · 后果", scene: sceneText.textContent });
         // 严重后果:fame、health、money、network 全砍
         applyEffect({ fame: -30, health: -20, money: -30, network: -15, comm: -8 });
         State.flags.add("genz_revenge");
@@ -667,6 +696,7 @@ HRBP 张姐找你谈话。她不再笑了。
 组里没人替他说话,大家觉得他确实不合适。
 你今年绩效照旧拿了 A。
 那一眼回头看你的画面,你后来再没想起来。`;
+    pushStory({ title: "辞退完成 · 你松了口气", scene: sceneText.textContent });
     el.innerHTML = `<button class="choice big-cta" id="genz-cont">回到工作 →</button>`;
     document.getElementById("genz-cont").onclick = onDone;
     return;
@@ -705,6 +735,7 @@ function renderChapterSummaryInner(ch) {
   document.getElementById("scene-title").textContent = fillCo(titleHtml);
   const summary = ch.summary || {};
   document.getElementById("scene-text").textContent = fillCo(summary.text || "");
+  pushStory({ title: titleHtml, scene: summary.text || "" });
 
   // 总结页 UI:章节摘要 + 当前画像
   const el = document.getElementById("choices");
@@ -977,6 +1008,7 @@ function renderReview(mg) {
       fired: "❌ 评审失败 · 被裁"
     };
     sceneTitle.textContent = titleByOutcome[outcomeKey] || "评审结果";
+    pushStory({ title: titleByOutcome[outcomeKey] || "评审结果", scene: outcome.log });
 
     const scoresHtml = mg.judges.map(j => `
       <div class="judge-score">${j.emoji} ${j.label}: <span class="${judgeTotals[j.id] >= 0 ? 'pos' : 'neg'}">${judgeTotals[j.id] > 0 ? "+" : ""}${judgeTotals[j.id]}</span></div>
@@ -1228,8 +1260,10 @@ function renderOfferNegotiation(mg) {
       ? ""
       : `\n\n[最终 Offer: base ${offer.base}k · 签字 ${offer.signon} 万${targetKey === "target_smallco" ? ` · 期权 ${offer.equity} 万股` : ""}]`;
 
-    document.getElementById("scene-title").textContent = isBad ? "跳槽失败" : "谈判结果";
+    const negTitle = isBad ? "跳槽失败" : "谈判结果";
+    document.getElementById("scene-title").textContent = negTitle;
     sceneText.textContent = line + offerSummary;
+    pushStory({ title: negTitle, scene: line + offerSummary });
     el.innerHTML = `<button class="choice" id="next-btn">${outcome.nextButton || "继续 →"}</button>`;
     document.getElementById("next-btn").onclick = () => advanceFromMinigame();
   }
@@ -1494,8 +1528,10 @@ function renderBugHunt(mg) {
     renderStats(delta);
     renderLog();
     document.getElementById("scene-title").textContent = "事故结算";
-    sceneText.textContent = outcome.log + pmComment
+    const bugScene = outcome.log + pmComment
       + `\n\n[评分: 找Bug ${score.phase1}/2 · 追责 ${score.phase2}/2 · 复盘 ${score.phase3}/2${pmTotal ? ` (话术 ${pmTotal}/12)` : ""}]`;
+    sceneText.textContent = bugScene;
+    pushStory({ title: "事故结算", scene: bugScene });
     el.innerHTML = `<button class="choice" id="next-btn">继续 →</button>`;
     document.getElementById("next-btn").onclick = () => advanceFromMinigame();
   }
@@ -1531,6 +1567,7 @@ function renderTechChoice(mg) {
       renderStats(delta);
       renderLog();
       document.getElementById("scene-text").textContent = opt.result;
+      pushStory({ title: mg.title, scene: opt.result, choice: opt.text });
       el.innerHTML = `<button class="choice" id="next-btn">继续 →</button>`;
       document.getElementById("next-btn").onclick = () => advanceFromMinigame();
     };
@@ -1582,6 +1619,7 @@ function renderInterviewBack(mg) {
     renderStats(delta);
     renderLog();
     document.getElementById("scene-text").textContent = summary;
+    pushStory({ title: mg.title, scene: summary });
     el.innerHTML = `<button class="choice" id="next-btn">继续 →</button>`;
     document.getElementById("next-btn").onclick = () => advanceFromMinigame();
   }
@@ -1740,15 +1778,94 @@ function generateLifeImage(head) {
     });
     hr(14);
 
-    // 人生轨迹
-    text(`人生轨迹（22-${State.age} 岁）`, F.label, COL.accent, 22);
-    y += 4;
-    const hist = State.history || [];
-    if (hist.length === 0) text("—", F.small, COL.faint, 22);
-    hist.forEach(h => {
-      text(`${h.age}岁 ｜ ${fillCo(h.text)}`, F.small, COL.sub, 22);
-      y += 3;
-    });
+    // 人生故事(完整叙事,按章节分组 + 步骤卡片)
+    const story = State.story || [];
+    if (story.length === 0) {
+      // 降级:旧存档或未走完第一步,回退到 history 摘要
+      text(`人生轨迹（22-${State.age} 岁）`, F.label, COL.accent, 22);
+      y += 4;
+      const hist = State.history || [];
+      if (hist.length === 0) text("—", F.small, COL.faint, 22);
+      hist.forEach(h => {
+        text(`${h.age}岁 ｜ ${fillCo(h.text)}`, F.small, COL.sub, 22);
+        y += 3;
+      });
+    } else {
+      text(`人生故事（22-${State.age} 岁）`, F.label, COL.accent, 22);
+      y += 6;
+
+      // 圆角矩形辅助(两遍都调,fill 仅绘制遍)
+      const roundRect = (x, y2, w, h, r) => {
+        if (!draw) return;
+        const rr = Math.min(r, h / 2, w / 2);
+        ctx.beginPath();
+        ctx.moveTo(x + rr, y2);
+        ctx.arcTo(x + w, y2, x + w, y2 + h, rr);
+        ctx.arcTo(x + w, y2 + h, x, y2 + h, rr);
+        ctx.arcTo(x, y2 + h, x, y2, rr);
+        ctx.arcTo(x, y2, x + w, y2, rr);
+        ctx.closePath();
+        ctx.fillStyle = "#f5f1e8";
+        ctx.fill();
+      };
+      // 估算一段文本在卡片内宽下的行数
+      const lineCount = (str, font) => str ? wrap(meas, str, font, CW - 24).length : 0;
+
+      // 按 chapterNo 分组(story 已按时间追加,同章连续)
+      let curNo = null;
+      story.forEach((e, i) => {
+        if (e.chapterNo !== curNo) {
+          curNo = e.chapterNo;
+          // 章节标题条
+          if (i > 0) y += 6;
+          const ageRange = (() => {
+            const sameCh = story.filter(s => s.chapterNo === e.chapterNo);
+            const a0 = sameCh[0].age, a1 = sameCh[sameCh.length - 1].age;
+            return a0 === a1 ? `${a0}岁` : `${a0}-${a1}岁`;
+          })();
+          text(`第 ${e.chapterNo || "?"} 章 · ${e.chapterTitle || ""} (${ageRange})`, F.label, COL.accent, 22);
+          y += 3;
+        }
+
+        // 卡片:先量内部高度,再画背景,再画文本
+        const cardX = PAD;
+        const cardInnerW = CW - 24;   // 左右各 12 内边距
+        // 用临时 meas 量各段行数
+        const titleLines = lineCount(`${e.age}岁 · ${e.title}`, F.label);
+        const sceneLines = e.scene ? wrap(meas, e.scene, F.body, cardInnerW).length : 0;
+        const choiceLines = e.choice ? wrap(meas, "→ 你选了:" + e.choice, F.small, cardInnerW).length : 0;
+        const fbLines = e.feedback ? wrap(meas, e.feedback, F.body, cardInnerW).length : 0;
+
+        let innerH = 10; // 顶部内边距
+        innerH += titleLines * 20;
+        if (e.scene) { innerH += 4 + sceneLines * 22; }
+        if (e.choice) { innerH += 4 + choiceLines * 19; }
+        if (e.feedback) { innerH += 4 + fbLines * 22; }
+        innerH += 10; // 底部内边距
+
+        const cardY = y;
+        roundRect(cardX, cardY, CW, innerH, 8);
+        // 画卡片内容(相对 cardY 偏移)
+        let cy = cardY + 10;
+        const drawText = (str, font, color, lh) => {
+          const lines = wrap(meas, str, font, cardInnerW);
+          for (const ln of lines) {
+            if (draw) {
+              ctx.font = font;
+              ctx.fillStyle = color;
+              ctx.textAlign = "left";
+              ctx.fillText(ln, cardX + 12, cy + lh * 0.72);
+            }
+            cy += lh;
+          }
+        };
+        drawText(`${e.age}岁 · ${e.title}`, F.label, COL.ink, 20);
+        if (e.scene) { cy += 4; drawText(e.scene, F.body, COL.sub, 22); }
+        if (e.choice) { cy += 4; drawText("→ 你选了:" + e.choice, F.small, COL.accent, 19); }
+        if (e.feedback) { cy += 4; drawText(e.feedback, F.body, COL.ink, 22); }
+        y = cardY + innerH + 6; // 卡片间距
+      });
+    }
 
     hr(14);
     text("程序员人生模拟器 · littleponyma.github.io/programmer-life", F.foot, COL.faint, 20, "center");
@@ -1759,7 +1876,12 @@ function generateLifeImage(head) {
   const H = paint(null, false);
   const canvas = document.createElement("canvas");
   canvas.width = W * DPR;
-  canvas.height = Math.ceil(H) * DPR;
+  // 高度上限保护:Chrome canvas 单边硬上限约 16384px,留余量到 14000
+  const finalH = Math.min(Math.ceil(H) * DPR, 14000);
+  canvas.height = finalH;
+  if (Math.ceil(H) * DPR > 14000) {
+    console.warn("人生长图过高,已截断到 14000px(原始", Math.ceil(H) * DPR, "px)");
+  }
   const ctx = canvas.getContext("2d");
   ctx.scale(DPR, DPR);
   ctx.fillStyle = COL.bg;
@@ -1825,6 +1947,7 @@ function reset() {
   State.stats = { tech: 50, comm: 50, money: 0, health: 80, network: 30, fame: 10 };
   State.flags = new Set();
   State.history = [];
+  State.story = [];
   State.lineId = "main";
   State.chapterId = null;
   State.eventIdx = 0;
@@ -1863,6 +1986,7 @@ function saveProgress() {
       stats: State.stats,
       flags: [...State.flags],
       history: State.history,
+      story: State.story,
       started: State.started,
       lineId: State.lineId,
       chapterId: State.chapterId,
@@ -1903,6 +2027,7 @@ function restoreState(d) {
   State.stats = d.stats;
   State.flags = new Set(d.flags || []);
   State.history = d.history || [];
+  State.story = d.story || [];
   State.started = d.started;
   State.lineId = d.lineId;
   State.chapterId = d.chapterId;
