@@ -1682,16 +1682,35 @@ function renderEnding(e) {
 function generateLifeImage(head) {
   const DPR = 2;
   const W = 520;
-  const PAD = 28;
+  const PAD = 26;
   const CW = W - PAD * 2;
-  const COL = { bg: "#fffdf7", ink: "#2a2a2a", sub: "#555", faint: "#888", accent: "#c97b3e", line: "#e2dccd" };
+
+  // 深色 commit-log 配色:深墨蓝底 + 暖白字 + 琥珀强调 + 终端绿语义
+  const COL = {
+    bg: "#0f1b2d", bgSoft: "#152540", bgLift: "#1c3050",
+    ink: "#f2efe6", sub: "#a8b3c7", faint: "#5e6b82",
+    accent: "#e8a259", accentDim: "#8a5e30",
+    ok: "#5fb878", okDim: "#1f3a2a",
+    line: "#243753", warn: "#d96b5a"
+  };
+  const FONT = "'PingFang SC','Microsoft YaHei',-apple-system,sans-serif";
+  const MONO = "'SF Mono','Menlo','Consolas','PingFang SC',monospace";
   const F = {
-    brand: "700 15px -apple-system,'PingFang SC','Microsoft YaHei',sans-serif",
-    h1:    "700 26px -apple-system,'PingFang SC','Microsoft YaHei',sans-serif",
-    label: "700 14px -apple-system,'PingFang SC','Microsoft YaHei',sans-serif",
-    body:  "15px -apple-system,'PingFang SC','Microsoft YaHei',sans-serif",
-    small: "13px -apple-system,'PingFang SC','Microsoft YaHei',sans-serif",
-    foot:  "12px -apple-system,'PingFang SC','Microsoft YaHei',sans-serif"
+    hero:    `700 28px ${FONT}`,
+    heroSub: `500 14px ${FONT}`,
+    brand:   `700 13px ${MONO}`,
+    chNo:    `800 32px ${MONO}`,
+    chTitle: `700 15px ${FONT}`,
+    chMeta:  `500 11px ${MONO}`,
+    label:   `700 13px ${FONT}`,
+    cardAge: `800 12px ${MONO}`,
+    cardTtl: `700 14.5px ${FONT}`,
+    body:    `14px ${FONT}`,
+    scene:   `13.5px ${FONT}`,
+    pill:    `600 11.5px ${FONT}`,
+    stat:    `700 13px ${MONO}`,
+    statLab: `12.5px ${FONT}`,
+    foot:    `500 11px ${MONO}`
   };
 
   const meas = document.createElement("canvas").getContext("2d");
@@ -1710,165 +1729,358 @@ function generateLifeImage(head) {
 
   // 单次绘制流程:ctx 为空(测量)或真实 ctx。返回内容总高度(逻辑 px)。
   function paint(ctx, draw) {
-    let y = PAD;
-    const hr = (gap) => {
-      y += gap;
-      if (draw) {
-        ctx.strokeStyle = COL.line;
-        ctx.lineWidth = 1;
-        ctx.beginPath();
-        ctx.moveTo(PAD, y + 0.5);
-        ctx.lineTo(W - PAD, y + 0.5);
-        ctx.stroke();
-      }
-      y += gap;
+    let y = 0;
+    // 圆角路径(仅绘制遍建路径)
+    const roundPath = (x, y2, w, h, r) => {
+      const rr = Math.min(r, h / 2, w / 2);
+      ctx.beginPath();
+      ctx.moveTo(x + rr, y2);
+      ctx.arcTo(x + w, y2, x + w, y2 + h, rr);
+      ctx.arcTo(x + w, y2 + h, x, y2 + h, rr);
+      ctx.arcTo(x, y2 + h, x, y2, rr);
+      ctx.arcTo(x, y2, x + w, y2, rr);
+      ctx.closePath();
     };
-    const text = (str, font, color, lh, align) => {
+    // 带指定左 x 的文本(支持多行,行高 lh)
+    const drawText = (str, font, color, lh, x) => {
+      const lines = wrap(meas, str, font, CW - (x - PAD));
+      for (const ln of lines) {
+        if (draw) {
+          ctx.font = font;
+          ctx.fillStyle = color;
+          ctx.textAlign = "left";
+          ctx.fillText(ln, x, y + lh * 0.78);
+        }
+        y += lh;
+      }
+    };
+    // 居中文本
+    const centerText = (str, font, color, lh) => {
       const lines = wrap(meas, str, font, CW);
       for (const ln of lines) {
         if (draw) {
           ctx.font = font;
           ctx.fillStyle = color;
-          ctx.textAlign = align || "left";
-          const x = align === "center" ? W / 2 : PAD;
-          ctx.fillText(ln, x, y + lh * 0.72);
+          ctx.textAlign = "center";
+          ctx.fillText(ln, W / 2, y + lh * 0.78);
         }
         y += lh;
       }
     };
 
-    // 品牌头
-    text("🧑‍💻 程序员人生 · 人生轨迹", F.brand, COL.accent, 22, "center");
-    y += 6;
+    // ===== 块0:Hero 渐变面板 =====
+    const heroH = 128;
+    if (draw) {
+      const grad = ctx.createLinearGradient(0, 0, 0, heroH);
+      grad.addColorStop(0, "#1a2c49");
+      grad.addColorStop(1, COL.bg);
+      ctx.fillStyle = grad;
+      ctx.fillRect(0, 0, W, heroH);
+      // 顶部 6px 强调条
+      ctx.fillStyle = COL.accent;
+      ctx.fillRect(0, 0, W, 6);
+    }
+    y = 22;
+    if (draw) {
+      ctx.font = F.brand;
+      ctx.fillStyle = COL.accent;
+      ctx.textAlign = "left";
+      ctx.fillText("🧑‍💻 程序员人生模拟器", PAD, y + 13 * 0.78);
+    }
+    y += 18;
+    if (draw) {
+      ctx.strokeStyle = COL.accentDim;
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(PAD, y + 0.5);
+      ctx.lineTo(W - PAD, y + 0.5);
+      ctx.stroke();
+    }
+    y = 50;
     if (head.isEnding) {
-      // 结局大标题 + 文案
-      text("结局 · " + fillCo(head.title), F.h1, COL.ink, 34, "center");
+      centerText("// final release", F.chMeta, COL.ok, 16);
       y += 4;
-      text(fillCo(head.text), F.body, COL.sub, 24);
+      centerText(fillCo(head.title), F.hero, COL.ink, 36);
+      y += 2;
+      centerText(fillCo(head.text), F.heroSub, COL.sub, 20);
     } else {
-      // 进行中:年龄 · 职级 · 当前公司
-      text("人生进行中", F.h1, COL.ink, 34, "center");
-      y += 4;
-      const co = State.currentCo ? " · " + fillCo(State.currentCo) : "";
       const tl = (typeof titleLabel === "function") ? titleLabel(State.title) : "";
-      text(`${State.age}岁 · ${tl}${co}`, F.body, COL.sub, 24, "center");
+      const co = State.currentCo ? " · " + fillCo(State.currentCo) : "";
+      centerText(`// work in progress · v${State.age}`, F.chMeta, COL.accent, 16);
+      y += 4;
+      centerText("人生进行中", F.hero, COL.ink, 36);
+      y += 2;
+      centerText(`${State.age}岁 · ${tl}${co}`, F.heroSub, COL.sub, 20);
     }
-    hr(14);
+    y = heroH + 16;
 
-    // 最终属性
-    text("最终属性", F.label, COL.accent, 22);
-    y += 4;
+    // ===== 块1:最终属性(进度条) =====
+    if (draw) {
+      ctx.font = F.label;
+      ctx.fillStyle = COL.accent;
+      ctx.textAlign = "left";
+      ctx.fillText("// final stats", PAD, y + 13 * 0.78);
+    }
+    y += 22;
     for (const s of STAT_DEFS) {
-      text(`${s.icon} ${s.label}    ${State.stats[s.key]}`, F.small, COL.ink, 22);
+      const v = State.stats[s.key];
+      if (draw) {
+        // 标签
+        ctx.font = F.statLab;
+        ctx.fillStyle = COL.ink;
+        ctx.textAlign = "left";
+        ctx.fillText(`${s.icon} ${s.label}`, PAD, y + 13 * 0.78);
+        // 数值
+        ctx.font = F.stat;
+        ctx.fillStyle = COL.accent;
+        ctx.textAlign = "right";
+        ctx.fillText(String(v), W - PAD, y + 13 * 0.78);
+        // 进度条
+        const barX = PAD + 78, barW = CW - 78 - 42, barY = y + 3, barH = 7;
+        roundPath(barX, barY, barW, barH, 4); ctx.fillStyle = COL.bgLift; ctx.fill();
+        let max = 100, col = COL.accent;
+        if (s.key === "money") { max = 200; col = COL.ok; }
+        if (s.key === "health" && v < 30) { col = COL.warn; }
+        const fw = barW * Math.max(0, Math.min(1, v / max));
+        if (fw > 1) { roundPath(barX, barY, fw, barH, 4); ctx.fillStyle = col; ctx.fill(); }
+      }
+      y += 26;
     }
-    hr(14);
+    y += 10;
 
-    // 职业履历
-    text("职业履历", F.label, COL.accent, 22);
-    y += 4;
-    const co = State.companyHistory || [];
-    if (co.length === 0) {
-      text("—", F.small, COL.faint, 22);
+    // ===== 块2:职业履历(时间轴) =====
+    if (draw) {
+      ctx.font = F.label;
+      ctx.fillStyle = COL.accent;
+      ctx.textAlign = "left";
+      ctx.fillText("// career log", PAD, y + 13 * 0.78);
     }
-    co.forEach((c, i) => {
-      const end = c.endAge || State.age;
-      text(`${c.startAge}-${end}岁  ${fillCo(c.co)}`, F.small, COL.ink, 21);
-      if (c.reason) text(`　${fillCo(c.reason)}`, F.foot, COL.faint, 19);
-      if (i < co.length - 1) y += 2;
-    });
-    hr(14);
+    y += 22;
+    const coHist = State.companyHistory || [];
+    if (coHist.length === 0) {
+      if (draw) { ctx.font = F.foot; ctx.fillStyle = COL.faint; ctx.fillText("—", PAD, y + 11 * 0.78); }
+      y += 18;
+    } else {
+      const axisX = PAD + 6;
+      // 垂直时间轴线
+      if (draw) {
+        ctx.strokeStyle = COL.accentDim;
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.moveTo(axisX, y + 4);
+        ctx.lineTo(axisX, y + coHist.length * 30 - 8);
+        ctx.stroke();
+      }
+      coHist.forEach((c, i) => {
+        const isLast = i === coHist.length - 1 && !c.endAge;
+        if (draw) {
+          // 节点圆点:进行中用空心,否则实心
+          ctx.beginPath();
+          ctx.arc(axisX, y + 9, 4.5, 0, Math.PI * 2);
+          if (isLast) {
+            ctx.fillStyle = COL.bg; ctx.fill();
+            ctx.strokeStyle = COL.accent; ctx.lineWidth = 2; ctx.stroke();
+          } else {
+            ctx.fillStyle = COL.accent; ctx.fill();
+          }
+        }
+        const end = c.endAge || State.age;
+        if (draw) {
+          ctx.font = F.foot; ctx.fillStyle = COL.faint; ctx.textAlign = "left";
+          ctx.fillText(`${c.startAge}–${end}岁`, PAD + 18, y + 11 * 0.78);
+          ctx.font = F.cardTtl; ctx.fillStyle = COL.ink;
+          ctx.fillText(fillCo(c.co), PAD + 18 + 56, y + 14.5 * 0.78);
+          if (c.reason) {
+            ctx.font = F.foot; ctx.fillStyle = COL.ok;
+            ctx.fillText(`// ${fillCo(c.reason)}`, PAD + 18, y + 24);
+          }
+        }
+        y += 30;
+      });
+    }
+    y += 8;
 
-    // 人生故事(完整叙事,按章节分组 + 步骤卡片)
+    // ===== 块3+4:人生故事(章节 + 卡片) =====
     const story = State.story || [];
     if (story.length === 0) {
-      // 降级:旧存档或未走完第一步,回退到 history 摘要
-      text(`人生轨迹（22-${State.age} 岁）`, F.label, COL.accent, 22);
-      y += 4;
+      // 降级:旧存档或未走完第一步
+      if (draw) {
+        ctx.font = F.label; ctx.fillStyle = COL.accent; ctx.textAlign = "left";
+        ctx.fillText(`// life trace (22-${State.age})`, PAD, y + 13 * 0.78);
+      }
+      y += 22;
       const hist = State.history || [];
-      if (hist.length === 0) text("—", F.small, COL.faint, 22);
+      if (hist.length === 0) {
+        if (draw) { ctx.font = F.foot; ctx.fillStyle = COL.faint; ctx.fillText("—", PAD, y + 11 * 0.78); }
+        y += 18;
+      }
       hist.forEach(h => {
-        text(`${h.age}岁 ｜ ${fillCo(h.text)}`, F.small, COL.sub, 22);
+        drawText(`${h.age}岁 ｜ ${fillCo(h.text)}`, F.scene, COL.sub, 20, PAD);
         y += 3;
       });
     } else {
-      text(`人生故事（22-${State.age} 岁）`, F.label, COL.accent, 22);
-      y += 6;
+      if (draw) {
+        ctx.font = F.label; ctx.fillStyle = COL.accent; ctx.textAlign = "left";
+        ctx.fillText(`// life story (22-${State.age})`, PAD, y + 13 * 0.78);
+      }
+      y += 22;
 
-      // 圆角矩形辅助(两遍都调,fill 仅绘制遍)
-      const roundRect = (x, y2, w, h, r) => {
-        if (!draw) return;
-        const rr = Math.min(r, h / 2, w / 2);
-        ctx.beginPath();
-        ctx.moveTo(x + rr, y2);
-        ctx.arcTo(x + w, y2, x + w, y2 + h, rr);
-        ctx.arcTo(x + w, y2 + h, x, y2 + h, rr);
-        ctx.arcTo(x, y2 + h, x, y2, rr);
-        ctx.arcTo(x, y2, x + w, y2, rr);
-        ctx.closePath();
-        ctx.fillStyle = "#f5f1e8";
-        ctx.fill();
-      };
-      // 估算一段文本在卡片内宽下的行数
-      const lineCount = (str, font) => str ? wrap(meas, str, font, CW - 24).length : 0;
-
-      // 按 chapterNo 分组(story 已按时间追加,同章连续)
+      const cardX = PAD;
+      const cardInnerX = cardX + 16;   // 左侧色条 4 + 间距 12
+      const cardInnerW = CW - 16 - 14; // 左 16 右 14
       let curNo = null;
+
       story.forEach((e, i) => {
         if (e.chapterNo !== curNo) {
           curNo = e.chapterNo;
-          // 章节标题条
-          if (i > 0) y += 6;
-          const ageRange = (() => {
+          if (i > 0) y += 8;
+          // 章节标题块:大编号 + CHAPTER 标签 + 标题 + meta
+          if (draw) {
+            ctx.font = F.chNo; ctx.fillStyle = COL.accent; ctx.textAlign = "left";
+            ctx.fillText(String(e.chapterNo || "?").padStart(2, "0"), cardX, y + 30);
+            ctx.font = F.chMeta; ctx.fillStyle = COL.faint;
+            ctx.fillText("CHAPTER", cardX + 50, y + 12);
+            ctx.font = F.chTitle; ctx.fillStyle = COL.ink;
+            ctx.fillText(e.chapterTitle || "", cardX + 50, y + 28);
             const sameCh = story.filter(s => s.chapterNo === e.chapterNo);
             const a0 = sameCh[0].age, a1 = sameCh[sameCh.length - 1].age;
-            return a0 === a1 ? `${a0}岁` : `${a0}-${a1}岁`;
-          })();
-          text(`第 ${e.chapterNo || "?"} 章 · ${e.chapterTitle || ""} (${ageRange})`, F.label, COL.accent, 22);
-          y += 3;
+            const ar = a0 === a1 ? `${a0}岁` : `${a0}-${a1}岁`;
+            ctx.font = F.chMeta; ctx.fillStyle = COL.accentDim;
+            ctx.fillText(`${ar} · release ${e.chapterNo || "?"}.0`, cardX + 50, y + 42);
+          }
+          y += 50;
+          if (draw) {
+            ctx.strokeStyle = COL.accent;
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.moveTo(cardX, y + 0.5);
+            ctx.lineTo(W - PAD, y + 0.5);
+            ctx.stroke();
+          }
+          y += 10;
         }
 
-        // 卡片:先量内部高度,再画背景,再画文本
-        const cardX = PAD;
-        const cardInnerW = CW - 24;   // 左右各 12 内边距
-        // 用临时 meas 量各段行数
-        const titleLines = lineCount(`${e.age}岁 · ${e.title}`, F.label);
-        const sceneLines = e.scene ? wrap(meas, e.scene, F.body, cardInnerW).length : 0;
-        const choiceLines = e.choice ? wrap(meas, "→ 你选了:" + e.choice, F.small, cardInnerW).length : 0;
-        const fbLines = e.feedback ? wrap(meas, e.feedback, F.body, cardInnerW).length : 0;
-
-        let innerH = 10; // 顶部内边距
-        innerH += titleLines * 20;
-        if (e.scene) { innerH += 4 + sceneLines * 22; }
-        if (e.choice) { innerH += 4 + choiceLines * 19; }
-        if (e.feedback) { innerH += 4 + fbLines * 22; }
-        innerH += 10; // 底部内边距
+        // 卡片高度预算
+        const ttlText = `${e.age}岁 · ${fillCo(e.title)}`;
+        const ttlLines = wrap(meas, ttlText, F.cardTtl, cardInnerW + 44).length;
+        const sceneLines = e.scene ? wrap(meas, e.scene, F.scene, cardInnerW - 14).length : 0;
+        const fbLines = e.feedback ? wrap(meas, e.feedback, F.body, cardInnerW - 14).length : 0;
+        let innerH = 11;
+        innerH += ttlLines * 19;
+        if (e.scene) innerH += 6 + sceneLines * 20;
+        if (e.choice) innerH += 7 + 20;
+        if (e.feedback) innerH += 6 + fbLines * 20;
+        innerH += 11;
 
         const cardY = y;
-        roundRect(cardX, cardY, CW, innerH, 8);
-        // 画卡片内容(相对 cardY 偏移)
-        let cy = cardY + 10;
-        const drawText = (str, font, color, lh) => {
-          const lines = wrap(meas, str, font, cardInnerW);
+        // 卡片背景 + 左侧色条
+        if (draw) {
+          roundPath(cardX, cardY, CW, innerH, 10); ctx.fillStyle = COL.bgSoft; ctx.fill();
+          roundPath(cardX, cardY, 4, innerH, 2); ctx.fillStyle = COL.accent; ctx.fill();
+        }
+        let cy = cardY + 11;
+        // (1) 年份徽章 + 标题
+        if (draw) {
+          roundPath(cardInnerX, cy - 1, 34, 17, 4); ctx.fillStyle = COL.bgLift; ctx.fill();
+          ctx.font = F.cardAge; ctx.fillStyle = COL.accent; ctx.textAlign = "center";
+          ctx.fillText(String(e.age), cardInnerX + 17, cy + 12);
+          ctx.textAlign = "left";
+        }
+        {
+          const lines = wrap(meas, ttlText, F.cardTtl, cardInnerW - 44 + cardInnerW);
           for (const ln of lines) {
             if (draw) {
-              ctx.font = font;
-              ctx.fillStyle = color;
-              ctx.textAlign = "left";
-              ctx.fillText(ln, cardX + 12, cy + lh * 0.72);
+              ctx.font = F.cardTtl; ctx.fillStyle = COL.ink; ctx.textAlign = "left";
+              ctx.fillText(ln, cardInnerX + 40, cy + 14.5 * 0.78);
             }
-            cy += lh;
+            cy += 19;
           }
-        };
-        drawText(`${e.age}岁 · ${e.title}`, F.label, COL.ink, 20);
-        if (e.scene) { cy += 4; drawText(e.scene, F.body, COL.sub, 22); }
-        if (e.choice) { cy += 4; drawText("→ 你选了:" + e.choice, F.small, COL.accent, 19); }
-        if (e.feedback) { cy += 4; drawText(e.feedback, F.body, COL.ink, 22); }
-        y = cardY + innerH + 6; // 卡片间距
+        }
+        // (2) scene 带 > 前缀
+        if (e.scene) {
+          cy += 6;
+          if (draw) {
+            ctx.font = F.body; ctx.fillStyle = COL.ok; ctx.textAlign = "left";
+            ctx.fillText(">", cardInnerX, cy + 14 * 0.78);
+          }
+          const lines = wrap(meas, fillCo(e.scene), F.scene, cardInnerW - 14);
+          for (const ln of lines) {
+            if (draw) {
+              ctx.font = F.scene; ctx.fillStyle = COL.sub; ctx.textAlign = "left";
+              ctx.fillText(ln, cardInnerX + 14, cy + 13.5 * 0.78);
+            }
+            cy += 20;
+          }
+        }
+        // (3) choice 药丸
+        if (e.choice) {
+          cy += 7;
+          if (draw) {
+            ctx.font = F.pill; ctx.fillStyle = COL.faint; ctx.textAlign = "left";
+            ctx.fillText("// 你选了", cardInnerX, cy + 11.5 * 0.78);
+            const choiceTxt = fillCo(e.choice);
+            const pillX = cardInnerX + 60, pillY = cy - 3, pillH = 20;
+            const txtW = meas.measureText(choiceTxt).width;
+            meas.font = F.pill;
+            const pw = Math.min(meas.measureText(choiceTxt).width + 16, cardInnerW - 60);
+            roundPath(pillX, pillY, pw, pillH, 10); ctx.fillStyle = COL.okDim; ctx.fill();
+            ctx.strokeStyle = COL.ok; ctx.lineWidth = 1; ctx.stroke();
+            ctx.font = F.pill; ctx.fillStyle = COL.ink;
+            ctx.fillText(choiceTxt, pillX + 8, pillY + 11.5 * 0.78 + 3);
+          }
+          cy += 20;
+        }
+        // (4) feedback 虚线分隔 + 正文
+        if (e.feedback) {
+          cy += 6;
+          if (draw) {
+            ctx.save();
+            ctx.strokeStyle = COL.line; ctx.lineWidth = 1; ctx.setLineDash([3, 3]);
+            ctx.beginPath();
+            ctx.moveTo(cardInnerX, cy - 3);
+            ctx.lineTo(cardX + CW - 14, cy - 3);
+            ctx.stroke();
+            ctx.restore();
+          }
+          const lines = wrap(meas, fillCo(e.feedback), F.body, cardInnerW - 14);
+          for (const ln of lines) {
+            if (draw) {
+              ctx.font = F.body; ctx.fillStyle = COL.ink; ctx.textAlign = "left";
+              ctx.fillText(ln, cardInnerX, cy + 14 * 0.78);
+            }
+            cy += 20;
+          }
+        }
+        y = cardY + innerH + 6;
       });
     }
 
-    hr(14);
-    text("程序员人生模拟器 · littleponyma.github.io/programmer-life", F.foot, COL.faint, 20, "center");
+    // ===== 块5:底部品牌签名 =====
+    y += 12;
+    if (draw) {
+      ctx.strokeStyle = COL.accentDim;
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(PAD, y + 0.5);
+      ctx.lineTo(W - PAD, y + 0.5);
+      ctx.stroke();
+    }
+    y += 16;
+    if (draw) {
+      ctx.font = F.brand; ctx.fillStyle = COL.ok; ctx.textAlign = "center";
+      ctx.fillText("》 end of life log", W / 2, y + 13 * 0.78);
+    }
+    y += 20;
+    if (draw) {
+      ctx.font = F.label; ctx.fillStyle = COL.ink; ctx.textAlign = "center";
+      ctx.fillText("程序员人生模拟器", W / 2, y + 13 * 0.78);
+    }
+    y += 18;
+    if (draw) {
+      ctx.font = F.foot; ctx.fillStyle = COL.sub; ctx.textAlign = "center";
+      ctx.fillText("▸ littleponyma.github.io/programmer-life", W / 2, y + 11 * 0.78);
+    }
+    y += 18;
     y += PAD;
     return y;
   }
@@ -1884,11 +2096,9 @@ function generateLifeImage(head) {
   }
   const ctx = canvas.getContext("2d");
   ctx.scale(DPR, DPR);
+  // 整图深色底
   ctx.fillStyle = COL.bg;
-  ctx.fillRect(0, 0, W, H);
-  // 顶部装饰条
-  ctx.fillStyle = COL.accent;
-  ctx.fillRect(0, 0, W, 6);
+  ctx.fillRect(0, 0, W, Math.ceil(H));
   paint(ctx, true);
   return canvas;
 }
